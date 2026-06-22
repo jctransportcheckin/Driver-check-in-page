@@ -26,7 +26,7 @@
 </head>
 <body class="min-h-screen">
 
-<div style="position:fixed;bottom:0.5rem;left:0.5rem;color:#94a3b8;font-size:0.65rem;z-index:999;">v19.9 ★</div>
+<div style="position:fixed;bottom:0.5rem;left:0.5rem;color:#94a3b8;font-size:0.65rem;z-index:999;">v20.0 ★</div>
 
 <!-- iOS floating back button — visible when past vehicle select screen -->
 <button id="ios-back-btn" onclick="iosGoBack()"
@@ -1012,12 +1012,6 @@ function submitChecklist() {
   };
 
   _photoErrors = [];
-  if (!CHECKLIST.requirePhotos) {
-    document.getElementById('successItemCount').textContent = '…';
-    document.getElementById('successPhotoRows').innerHTML =
-      '<p class="text-sm text-slate-400 text-center py-1">Saving…</p>';
-    showScreen('success');
-  }
   btn.textContent = 'Uploading photos...';
 
   // Collect all item photos for upload
@@ -1143,7 +1137,7 @@ function saveResponseRecord(rec, btn) {
     }
     document.getElementById('successPhotoRows').innerHTML = photoHtml;
     TODAY_SUBMISSIONS[rec.deviceId] = true; // badge shows if driver goes back
-    if (CHECKLIST.requirePhotos) showScreen('success');
+    showScreen('success');
 
     // Auto-create IssueStatus records for each failed item
     var failedItems = rec.items.filter(function(i) { return i.value === 'fail' || i.value === 'no'; });
