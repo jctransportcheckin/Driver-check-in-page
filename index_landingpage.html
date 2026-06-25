@@ -124,6 +124,25 @@
   </div>
 </div>
 
+<!-- ═══ SCREEN 1b: Checklist Picker ══════════════════════════════════════════ -->
+<div id="screen-picker" class="screen hidden flex flex-col" style="height:100dvh;overflow:hidden;">
+  <header class="bg-[#0047BB] text-white px-5 py-4 shadow">
+    <div class="flex items-center gap-3">
+      <button onclick="goBackToVehicleSelect()" class="text-blue-200 hover:text-white">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      </button>
+      <div>
+        <p class="font-semibold">Select Checklist</p>
+        <p id="pickerVehicleName" class="text-blue-200 text-xs mt-0.5"></p>
+      </div>
+    </div>
+  </header>
+  <div class="flex-1 overflow-y-auto px-5 py-6 max-w-lg mx-auto w-full">
+    <p class="text-sm text-slate-500 mb-4">Multiple checklists are assigned. Please select which one to complete.</p>
+    <div id="pickerList" class="space-y-3"></div>
+  </div>
+</div>
+
 <!-- ═══ SCREEN 2: Photos ═══════════════════════════════════════════════════════ -->
 <div id="screen-photos" class="screen hidden flex flex-col" style="height:100dvh;overflow:hidden;">
   <header class="bg-[#0047BB] text-white px-5 py-4 shadow">
@@ -493,17 +512,26 @@ function applyTemplate(tmpl) {
   }
 }
 
-function pickTemplateForVehicle(vehicleId) {
-  // 1. Vehicle-assigned template explicitly assigned to this vehicle
-  var tmpl = ALL_TEMPLATES.find(function(t) {
+function pickTemplatesForVehicle(vehicleId) {
+  // Collect ALL matching templates — vehicle-assigned and driver-assigned
+  var vehicleTemplates = ALL_TEMPLATES.filter(function(t) {
     return t.assignTo === 'asset' && Array.isArray(t.assigned) && t.assigned.indexOf(vehicleId) !== -1;
   });
-  // 2. Driver-assigned template explicitly assigned to this driver
-  if (!tmpl) tmpl = ALL_TEMPLATES.find(function(t) {
+  var driverTemplates = ALL_TEMPLATES.filter(function(t) {
     return t.assignTo === 'driver' && Array.isArray(t.assigned) && t.assigned.indexOf(DRIVER.id) !== -1;
   });
-  // No fallbacks — if not explicitly assigned, return null
-  return tmpl || null;
+  // Merge, deduplicate by id
+  var seen = {};
+  var all = [];
+  vehicleTemplates.concat(driverTemplates).forEach(function(t) {
+    if (!seen[t.id]) { seen[t.id] = true; all.push(t); }
+  });
+  return all;
+}
+
+function pickTemplateForVehicle(vehicleId) {
+  var all = pickTemplatesForVehicle(vehicleId);
+  return all.length > 0 ? all[0] : null;
 }
 
 // ── Screen 0: vehicle select ──────────────────────────────────────────────────
@@ -580,8 +608,17 @@ function selectVehicle(id) {
   responses = {};
   photos    = {};
 
-  // Pick the best matching template for this vehicle
-  var tmpl = pickTemplateForVehicle(id);
+  // Find all matching templates
+  var templates = pickTemplatesForVehicle(id);
+
+  // If multiple — show picker screen
+  if (templates.length > 1) {
+    showChecklistPicker(templates);
+    return;
+  }
+
+  // Single or none — proceed as before
+  var tmpl = templates.length === 1 ? templates[0] : null;
 
   // Clear any previous no-checklist message
   var oldMsg = document.getElementById('no-checklist-msg');
@@ -737,6 +774,38 @@ function updateProgress() {
   document.getElementById('progressBar').value = total > 0 ? Math.round(answered / total * 100) : 0;
   document.getElementById('toPhotosBtn').disabled = answered < total;
 }
+
+// ── Screen 1b: Checklist Picker ───────────────────────────────────────────────
+var TRIP_TYPE_LABELS = { pre: 'Pre-trip', post: 'Post-trip', any: 'General' };
+var TRIP_TYPE_COLOURS = { pre: '#2563eb', post: '#16a34a', any: '#64748b' };
+
+function showChecklistPicker(templates) {
+  document.getElementById('pickerVehicleName').textContent = selectedVehicle.name + (selectedVehicle.plate ? ' · ' + selectedVehicle.plate : '');
+  document.getElementById('pickerList').innerHTML = templates.map(function(t) {
+    var tripType  = t.tripType || 'any';
+    var label     = TRIP_TYPE_LABELS[tripType] || 'General';
+    var colour    = TRIP_TYPE_COLOURS[tripType] || '#64748b';
+    return '<button onclick="selectChecklist(\'' + t.id + '\')" style="width:100%;text-align:left;background:white;border:2px solid #e2e8f0;border-radius:16px;padding:18px 20px;cursor:pointer;transition:border-color .15s;" '
+      + 'onmouseover="this.style.borderColor=\'' + colour + '\'" onmouseout="this.style.borderColor=\'#e2e8f0\'">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">'
+      + '<p style="font-size:15px;font-weight:700;color:#1e293b;margin:0;">' + (t.name || 'Checklist') + '</p>'
+      + '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:' + colour + '1a;color:' + colour + ';">' + label + '</span>'
+      + '</div>'
+      + '<p style="font-size:12px;color:#94a3b8;margin:0;">' + (t.items || []).length + ' items · ' + (t.requirePhotos ? 'Photos required' : 'No end-of-check photos') + '</p>'
+      + '</button>';
+  }).join('');
+  showScreen('picker');
+}
+
+function selectChecklist(templateId) {
+  var tmpl = ALL_TEMPLATES.find(function(t) { return t.id === templateId; });
+  if (!tmpl) return;
+  applyTemplate(tmpl);
+  showScreen('checklist');
+  renderChecklist();
+}
+
+function goBackToVehicleSelect() { showScreen('select'); }
 
 // ── Screen 2: photos ──────────────────────────────────────────────────────────
 function showPhotos() { showScreen('photos'); updateSubmitFromSlots(); }
@@ -988,6 +1057,7 @@ function submitChecklist() {
     id:            'resp-' + Date.now(),
     templateId:    CHECKLIST.id,
     templateName:  CHECKLIST.name,
+    tripType:      CHECKLIST.tripType || 'any',
     driverId:      DRIVER.id,
     driverName:    DRIVER.name,
     deviceId:      selectedVehicle.id,
@@ -1369,7 +1439,7 @@ function capturePhoto() {
 // ── Utility ───────────────────────────────────────────────────────────────────
 
 var _currentScreen = 'select';
-var _prevScreenMap = { 'checklist': 'select', 'photos': 'checklist', 'success': 'select' };
+var _prevScreenMap = { 'picker': 'select', 'checklist': 'select', 'photos': 'checklist', 'success': 'select' };
 
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach(function(s) { s.style.display = 'none'; });
