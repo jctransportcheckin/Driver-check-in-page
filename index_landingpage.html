@@ -1400,6 +1400,7 @@ function closeCamera() {
   }
   document.getElementById('cameraVideo').srcObject = null;
   document.getElementById('cameraOverlay').style.display = 'none';
+  showScreen(_currentSlot !== null ? 'photos' : 'checklist');
 }
 
 function switchCamera() {
